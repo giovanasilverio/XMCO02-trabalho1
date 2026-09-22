@@ -1,0 +1,23 @@
+c Multi-commodity max flow instance 1
+c 10 vertices, 2 commodities
+c Commodity 1: s=1, t=10
+c Commodity 2: s=2, t=9
+p mcf 10 14 2
+n 1 s 1
+n 10 t 1
+n 2 s 2
+n 9 t 2
+a 1 2 10
+a 1 3 8
+a 2 4 5
+a 2 5 7
+a 3 4 6
+a 3 6 9
+a 4 7 4
+a 5 7 8
+a 5 8 6
+a 6 8 5
+a 6 9 7
+a 7 10 10
+a 8 10 8
+a 9 10 6
