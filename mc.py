@@ -23,10 +23,8 @@ def ler_instancia(caminho):
             if linha[0] == "p":
                 num_vertices = int(partes[2])
                 num_arestas = int(partes[3])
-                num_mercadorias = int(partes[4])
-
-            # Fonte ou destino de uma mercadoria:
-            # n <vertice> <s/t> <mercadoria>
+                num_mercadorias = int(partes[4]) 
+                
             elif linha[0] == "n":
                 vertice = int(partes[1])
                 tipo_no = partes[2]
@@ -76,15 +74,8 @@ def construir_variavel(instancia):
 
     for mercadoria in range(1, num_mercadorias + 1):
         for origem, destino, _ in arestas:
-            # Sentido origem -> destino
             variaveis[
                 (mercadoria, origem, destino)
-            ] = coluna
-            coluna += 1
-
-            # Sentido destino -> origem
-            variaveis[
-                (mercadoria, destino, origem)
             ] = coluna
             coluna += 1
 
@@ -107,6 +98,78 @@ def construir_objetivo(instancia, variaveis):
 
     return vetor
 
+def construir_capacidades(instancia, variaveis):
+    arestas = instancia["arestas"]
+    linhas = []
+    lados_direitos = []
+
+    for origem, destino, capacidade in arestas:
+        linha = [0] * len(variaveis)
+
+        for mercadoria in range(1, instancia["num_mercadorias"] + 1):
+            coluna = variaveis[(mercadoria, origem, destino)]
+            linha[coluna] = 1
+
+        linhas.append(linha)
+        lados_direitos.append(capacidade)
+
+    return linhas, lados_direitos
+
+
+def construir_conservacao(instancia, variaveis):
+    arestas = instancia["arestas"]
+    linhas = []
+    lados_direitos = []
+    
+    for mercadoria in range(1, instancia["num_mercadorias"] + 1):
+        for vertice in range(1, instancia["num_vertices"] + 1):
+            if vertice == instancia["fontes"][mercadoria] or vertice == instancia["destinos"][mercadoria]:
+                continue
+            linha = [0] * len(variaveis)
+            for origem, destino, capacidade in arestas:
+                coluna = variaveis[(mercadoria, origem, destino)]
+                if origem == vertice:
+                    linha[coluna] = +1
+                if destino == vertice:
+                    linha[coluna] = -1   
+                                
+            linhas.append(linha)
+            lados_direitos.append(0)    
+                
+    return linhas, lados_direitos
+
+def construir_modelo_fluxo(instancia):
+    variaveis = construir_variavel(instancia)
+    objetivo = construir_objetivo(instancia, variaveis)
+    linhas_capacidade, limites_capacidade = construir_capacidades(instancia, variaveis)
+    linhas_conservacao, zeros_conservacao = construir_conservacao(instancia, variaveis)
+    return variaveis, objetivo, linhas_capacidade, limites_capacidade, linhas_conservacao, zeros_conservacao
+
+def resolver_primal_dual(modelo):
+    # receber as matrizes do modelo;
+    # obter uma solução inicial;
+    # executar as iterações;
+    # retornar solução primal, solução dual e valor ótimo.
+    # implementação geral do algoritmo
+    return 
+
+
+def validar_solucao(instancia, solucao):
+    # verificar não negatividade;
+    # verificar capacidades;
+    # verificar conservação;
+    # recalcular a função objetivo;
+    # verificar o gap primal-dual.
+    # retorna se a solução é válida e possíveis erros
+    return 
+
+def exibir_resultado(instancia, modelo, solucao):
+    # traduzir índices de volta para nomes;
+    # imprimir somente variáveis não nulas;
+    # mostrar objetivo primal e dual;
+    # mostrar o gap.
+    # impressão organizada
+    return 
 
 def main():
     instancia = ler_instancia("mc_instance1.max")
@@ -117,6 +180,12 @@ def main():
         instancia,
         variaveis
     )
+    
+    capacidade = construir_capacidades(instancia, variaveis)
+    
+    conservacao = construir_conservacao(instancia, variaveis)
+    
+    modelo = construir_modelo_fluxo(instancia)
 
     print("Instância:")
     print(instancia)
@@ -137,6 +206,11 @@ def main():
                 objetivo[coluna]
             )
 
+    print("\n", capacidade)
+    
+    print("\n", conservacao)
+    
+    print("\n", modelo)
 
 if __name__ == "__main__":
     main()
