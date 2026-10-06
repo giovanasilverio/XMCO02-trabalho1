@@ -127,7 +127,3 @@ python -m pip install pulp
 
 As demais dependências e a forma de selecionar as instâncias devem ser verificadas nos respectivos scripts.
 
-
-A apresentação será realizada por grupo, com execução de instâncias e perguntas sobre a implementação.
-
-Conforme o enunciado, é expressamente proibido o uso de LLMs para geração de código neste trabalho. A identificação desse uso implica não originalidade e anulação da nota.
