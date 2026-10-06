@@ -1,11 +1,10 @@
 import pulp
-from mc import ler_instancia
+from max import ler_instancia
 
 
 def resolver_com_pulp(instancia, variaveis=None):
     problema = pulp.LpProblem("fluxo_maximo_multiplas_mercadorias", pulp.LpMaximize)
     arestas = instancia["arestas"]
-    # O PuLP usa o índice da aresta, independentemente das chaves usadas em mc.py.
     chaves = [
         (mercadoria, indice)
         for mercadoria in range(1, instancia["num_mercadorias"] + 1)
