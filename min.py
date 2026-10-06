@@ -111,6 +111,9 @@ def simplex(A, B, C, base):
             if tableau[i][entra] > TOL
         ]
 
+        if not possiveis:
+            raise RuntimeError("Problema ilimitado no Simplex.")
+
         sai = min(
             possiveis,
             key=lambda i: (
@@ -133,6 +136,9 @@ def simplex(A, B, C, base):
                     ]
 
         base[sai] = entra
+
+    else:
+        raise RuntimeError("Limite de pivos do Simplex atingido.")
 
     valores = np.zeros(n)
 
@@ -287,8 +293,7 @@ def resolver_primal_dual(A, B, C):
                 "objetivo_primal": sum(C[j] * x[j] for j in range(qtd_variaveis)),
                 "objetivo_dual": valor_dual,
                 "iteracoes": iteracao,
-                "historico": historico,
-                "J": J
+                "historico": historico
             }
 
         pi = rsp["pi"]
@@ -307,18 +312,135 @@ def resolver_primal_dual(A, B, C):
         theta = min(passos)
         y = [y[i] + theta * pi[i] for i in range(qtd_restricoes)]
 
+    raise RuntimeError("Numero maximo de iteracoes atingido.")
+
+def modelar_solucao(resultado):
+    d = resultado["x"][:qtd_vertices]
+    x = resultado["x"][qtd_vertices:]
+
+    y_mais = resultado["y"][0::2][:qtd_arestas]
+    y_menos = resultado["y"][1::2][:qtd_arestas]
+
+    lambda_s = resultado["y"][2 * qtd_arestas]
+    lambda_t = resultado["y"][2 * qtd_arestas + 1]
+
+    S = [v + 1 for v in range(qtd_vertices) if d[v] <= 0.5]
+    T = [v + 1 for v in range(qtd_vertices) if d[v] > 0.5]
+
+    valor_particao = sum(
+        capacidades[e]
+        for e, (u, v) in enumerate(arestas)
+        if (u in S and v in T) or (u in T and v in S)
+    )
+
+    return {
+        "d": d,
+        "x": x,
+        "y_mais": y_mais,
+        "y_menos": y_menos,
+        "lambda_s": lambda_s,
+        "lambda_t": lambda_t,
+        "S": S,
+        "T": T,
+        "valor": resultado["objetivo_primal"],
+        "valor_particao": valor_particao
+    }
+
+def validar_solucao(A, B, C, resultado, solucao):
+    x = resultado["x"]
+    y = resultado["y"]
+
+    if min(x) < -TOL:
+        return False
+
+    for i in range(len(A)):
+        if sum(A[i][j] * x[j] for j in range(len(C))) - B[i] < -TOL:
+            return False
+
+    if min(y[:2 * qtd_arestas]) < -TOL:
+        return False
+
+    for j in range(len(C)):
+        valor = sum(A[i][j] * y[i] for i in range(len(B))) - C[j]
+
+        if valor > TOL:
+            return False
+
+    valor_primal = sum(C[j] * x[j] for j in range(len(C)))
+    valor_dual = sum(B[i] * y[i] for i in range(len(B)))
+
+    if abs(valor_primal - valor_dual) > TOL:
+        return False
+
+    if abs(solucao["valor"] - solucao["valor_particao"]) > TOL:
+        return False
+
+    return True
+
+def exibir_resultado(resultado, solucao, valido):
+    print("\n--- Variaveis primais nao-nulas ---")
+    print("\nd_v:")
+    for v, valor in enumerate(solucao["d"], start=1):
+        if abs(valor) > TOL:
+            print(f"  d_{v} = {valor:.10g}")
+
+    print("\nx_e:")
+    for e, valor in enumerate(solucao["x"], start=1):
+        if abs(valor) > TOL:
+            u, v = arestas[e - 1]
+            print(
+                f"  x_{e} = {valor:.10g} "
+                f"(aresta {u}-{v}, capacidade={capacidades[e - 1]:g})"
+            )
+
+    print("\n--- Variaveis duais nao-nulas ---")
+    for e, (u, v) in enumerate(arestas):
+        yp = solucao["y_mais"][e]
+        ym = solucao["y_menos"][e]
+
+        if abs(yp) > TOL:
+            print(f"  y+_{e + 1} = {yp:.10g} ({u}-{v})")
+
+        if abs(ym) > TOL:
+            print(f"  y-_{e + 1} = {ym:.10g} ({u}-{v})")
+
+    print(f"\n  lambda_s = {solucao['lambda_s']:.10g}")
+    print(f"  lambda_t = {solucao['lambda_t']:.10g}")
+
+    print("\n--- Solucao ---")
+    print(f"S = {solucao['S']}")
+    print(f"T = {solucao['T']}")
+
+    print(f"\nValor otimo pelo Simplex: {solucao['valor']:.10g}")
+    print(f"Valor calculado pela particao: {solucao['valor_particao']:.10g}")
+
+    print("\nValidacao:", "OK" if valido else "ERRO")
+
+    print("\n--- Historico primal-dual ---")
+    for item in resultado["historico"]:
+        print(
+            f"  iteracao={item['iteracao']:3d} "
+            f"| len(J)={item['tamanho_J']:3d} "
+            f"| w*={item['w']:.10g} "
+            f"| dual={item['valor_dual']:.10g}"
+        )
+
 if __name__ == "__main__":
     instancia = input("Escolha uma instancia para execucao (1 - 5): ")
 
     ler_instancia(instancia)
     A, B, C = construir_modelo()
 
-    resultado = resolver_primal_dual(A, B, C)
+    print("\nInstancia carregada:")
+    print(f"  vertices = {qtd_vertices}")
+    print(f"  arestas  = {qtd_arestas}")
+    print(f"  fonte    = {s}")
+    print(f"  sumidouro = {t}")
+    print(f"  variaveis do modelo = {len(C)}")
+    print(f"  restricoes do modelo = {len(B)}")
 
-    print(resultado["x"][:qtd_vertices])
-    print(resultado["x"][qtd_vertices:])
-    print(resultado["y"])
-    print(resultado["objetivo_primal"])
-    print(resultado["objetivo_dual"])
-    print(resultado["iteracoes"])
-    print(resultado["historico"])
+    resultado = resolver_primal_dual(A, B, C)
+    solucao = modelar_solucao(resultado)
+    valido = validar_solucao(A, B, C, resultado, solucao)
+
+    exibir_resultado(resultado, solucao, valido)
