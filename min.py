@@ -1,0 +1,446 @@
+import numpy as np
+
+TOL = 1e-9
+MAX_ITER = 10000
+
+qtd_vertices = None
+qtd_arestas = None
+
+s = None
+t = None
+
+arestas = []
+capacidades = []
+
+def ler_instancia(i):
+    global qtd_vertices, qtd_arestas, s, t, arestas, capacidades
+
+    with open(f"instance{i}.min", "r", encoding="utf-8") as f:
+        for linha in f:
+            linha = linha.strip()
+
+            if not linha or linha.startswith("c"):
+                continue
+
+            partes = linha.split()
+
+            if partes[0] == "p":
+                qtd_vertices = int(partes[2])
+
+            elif partes[0] == "n":
+                if partes[2] == "s":
+                    s = int(partes[1])
+                else:
+                    t = int(partes[1])
+
+            else:
+                arestas.append((int(partes[1]), int(partes[2])))
+                capacidades.append(float(partes[3]))
+
+    qtd_arestas = len(arestas)
+
+
+def construir_modelo():
+    qtd_variaveis = qtd_vertices + qtd_arestas
+
+    A = []
+    B = []
+    C = np.zeros(qtd_variaveis)
+
+    for e, (u, v) in enumerate(arestas):
+
+        # cortek - du + dv >= 0
+        linha = np.zeros(qtd_variaveis)
+        linha[u - 1] -= 1.0
+        linha[v - 1] += 1.0
+        linha[qtd_vertices + e] = 1.0
+        A.append(linha)
+        B.append(0.0)
+
+        # cortek + du - dv >= 0
+        linha = np.zeros(qtd_variaveis)
+        linha[u - 1] += 1.0
+        linha[v - 1] -= 1.0
+        linha[qtd_vertices + e] = 1.0
+        A.append(linha)
+        B.append(0.0)
+
+        C[qtd_vertices + e] = capacidades[e]
+
+    # ds = 0
+    linha = [0.0] * qtd_variaveis
+    linha[s - 1] = 1.0
+    A.append(linha)
+    B.append(0.0)
+
+    # dt = 1
+    linha = [0.0] * qtd_variaveis
+    linha[t - 1] = 1.0
+    A.append(linha)
+    B.append(1.0)
+
+    return A, B, C
+
+def custos_reduzidos(A, C, y):
+    return [
+        C[j] - sum(y[i] * A[i][j] for i in range(len(y)))
+        for j in range(len(C))
+    ]
+
+def simplex(A, B, C, base):
+    m = len(B)
+    n = len(C)
+    tableau = [A[i][:] + [B[i]] for i in range(m)]
+
+    for _ in range(MAX_ITER):
+        reduzidos = [
+            C[j] - sum(C[base[i]] * tableau[i][j] for i in range(m))
+            for j in range(n)
+        ]
+
+        entra = next(
+            (j for j in range(n) if reduzidos[j] > TOL),
+            None
+        )
+
+        if entra is None:
+            break
+
+        possiveis = [
+            i for i in range(m)
+            if tableau[i][entra] > TOL
+        ]
+
+        if not possiveis:
+            raise RuntimeError("Problema ilimitado no Simplex.")
+
+        sai = min(
+            possiveis,
+            key=lambda i: (
+                tableau[i][-1] / tableau[i][entra],
+                base[i]
+            )
+        )
+
+        pivo = tableau[sai][entra]
+        tableau[sai] = [valor / pivo for valor in tableau[sai]]
+
+        for i in range(m):
+            if i != sai:
+                fator = tableau[i][entra]
+
+                if abs(fator) > TOL:
+                    tableau[i] = [
+                        tableau[i][j] - fator * tableau[sai][j]
+                        for j in range(n + 1)
+                    ]
+
+        base[sai] = entra
+
+    else:
+        raise RuntimeError("Limite de pivos do Simplex atingido.")
+
+    valores = np.zeros(n)
+
+    for i in range(m):
+        if base[i] < n:
+            valores[base[i]] = tableau[i][-1]
+
+    valor = sum(C[j] * valores[j] for j in range(n))
+
+    return valor, valores, base, tableau
+
+def resolver_rsp(A, B, y, J):
+    linhas = []
+    rhs = []
+    tipos = []
+    qtd_desigualdades = 2 * qtd_arestas
+
+    for i in range(len(B)):
+        linha = [A[i][j] for j in J]
+
+        if i >= qtd_desigualdades or y[i] > TOL:
+            linhas.append(linha)
+            rhs.append(B[i])
+            tipos.append("=")
+        else:
+            linhas.append([-valor for valor in linha])
+            rhs.append(-B[i])
+            tipos.append("<=")
+
+    m = len(rhs)
+    n = len(J)
+    matriz = [linha[:] for linha in linhas]
+    base = []
+    artificiais = []
+
+    for i in range(m):
+        indice = len(matriz[0])
+        for k in range(m):
+            matriz[k].append(1.0 if k == i else 0.0)
+
+        base.append(indice)
+
+        if tipos[i] == "=":
+            artificiais.append(indice)
+
+    custos = np.zeros(len(matriz[0]))
+
+    for j in artificiais:
+        custos[j] = -1.0
+
+    valor, valores, base, tableau = simplex(matriz, rhs, custos, base)
+
+    if -valor <= TOL:
+        x_restrito = np.zeros(n)
+
+        for i in range(m):
+            if base[i] < n:
+                x_restrito[base[i]] = tableau[i][-1]
+
+        return {
+            "factivel": True,
+            "w": 0.0,
+            "x_restrito": x_restrito,
+            "pi": None
+        }
+
+    mapa = []
+
+    for i in range(len(B)):
+        if i >= qtd_desigualdades or y[i] > TOL:
+            mapa.append((i, 1.0))
+            mapa.append((i, -1.0))
+        else:
+            mapa.append((i, 1.0))
+
+    linhas = []
+
+    for j in J:
+        linhas.append([
+            sinal * A[i][j]
+            for i, sinal in mapa
+        ])
+
+    linhas.append([1.0] * len(mapa))
+    rhs = [0.0] * len(J) + [1.0]
+
+    n_pi = len(mapa)
+    n_cert = len(rhs)
+    matriz = []
+
+    for i in range(n_cert):
+        linha = linhas[i][:] + [0.0] * n_cert
+        linha[n_pi + i] = 1.0
+        matriz.append(linha)
+
+    custos = [
+        B[i] * sinal
+        for i, sinal in mapa
+    ] + [0.0] * n_cert
+
+    base = [n_pi + i for i in range(n_cert)]
+
+    w, valores, _, _ = simplex(matriz, rhs, custos, base)
+
+    pi = np.zeros(len(B))
+
+    for valor_variavel, (i, sinal) in zip(valores, mapa):
+        pi[i] += sinal * valor_variavel
+
+    return {
+        "factivel": False,
+        "w": w,
+        "x_restrito": None,
+        "pi": pi
+    }
+
+def resolver_primal_dual(A, B, C):
+    qtd_variaveis = len(C)
+    qtd_restricoes = len(B)
+
+    y = np.zeros(qtd_restricoes)
+    historico = []
+
+    for iteracao in range(1, MAX_ITER + 1):
+        d = custos_reduzidos(A, C, y)
+
+        J = [
+            j for j in range(qtd_variaveis)
+            if abs(d[j]) <= TOL
+        ]
+
+        rsp = resolver_rsp(A, B, y, J)
+
+        valor_dual = sum(B[i] * y[i] for i in range(qtd_restricoes))
+
+        historico.append({
+            "iteracao": iteracao,
+            "tamanho_J": len(J),
+            "w": rsp["w"],
+            "valor_dual": valor_dual
+        })
+
+        if rsp["factivel"]:
+            x = np.zeros(qtd_variaveis)
+
+            for posicao, j in enumerate(J):
+                x[j] = rsp["x_restrito"][posicao]
+
+            return {
+                "x": x,
+                "y": y,
+                "objetivo_primal": sum(C[j] * x[j] for j in range(qtd_variaveis)),
+                "objetivo_dual": valor_dual,
+                "iteracoes": iteracao,
+                "historico": historico
+            }
+
+        pi = rsp["pi"]
+        passos = []
+
+        for j in range(qtd_variaveis):
+            alfa = sum(A[i][j] * pi[i] for i in range(qtd_restricoes))
+
+            if d[j] > TOL and alfa > TOL:
+                passos.append(d[j] / alfa)
+
+        for i in range(2 * qtd_arestas):
+            if pi[i] < -TOL:
+                passos.append(y[i] / (-pi[i]))
+
+        theta = min(passos)
+        y = [y[i] + theta * pi[i] for i in range(qtd_restricoes)]
+
+    raise RuntimeError("Numero maximo de iteracoes atingido.")
+
+def modelar_solucao(resultado):
+    d = resultado["x"][:qtd_vertices]
+    x = resultado["x"][qtd_vertices:]
+
+    y_mais = resultado["y"][0::2][:qtd_arestas]
+    y_menos = resultado["y"][1::2][:qtd_arestas]
+
+    lambda_s = resultado["y"][2 * qtd_arestas]
+    lambda_t = resultado["y"][2 * qtd_arestas + 1]
+
+    S = [v + 1 for v in range(qtd_vertices) if d[v] <= 0.5]
+    T = [v + 1 for v in range(qtd_vertices) if d[v] > 0.5]
+
+    valor_particao = sum(
+        capacidades[e]
+        for e, (u, v) in enumerate(arestas)
+        if (u in S and v in T) or (u in T and v in S)
+    )
+
+    return {
+        "d": d,
+        "x": x,
+        "y_mais": y_mais,
+        "y_menos": y_menos,
+        "lambda_s": lambda_s,
+        "lambda_t": lambda_t,
+        "S": S,
+        "T": T,
+        "valor": resultado["objetivo_primal"],
+        "valor_particao": valor_particao
+    }
+
+def validar_solucao(A, B, C, resultado, solucao):
+    x = resultado["x"]
+    y = resultado["y"]
+
+    if min(x) < -TOL:
+        return False
+
+    for i in range(len(A)):
+        if sum(A[i][j] * x[j] for j in range(len(C))) - B[i] < -TOL:
+            return False
+
+    if min(y[:2 * qtd_arestas]) < -TOL:
+        return False
+
+    for j in range(len(C)):
+        valor = sum(A[i][j] * y[i] for i in range(len(B))) - C[j]
+
+        if valor > TOL:
+            return False
+
+    valor_primal = sum(C[j] * x[j] for j in range(len(C)))
+    valor_dual = sum(B[i] * y[i] for i in range(len(B)))
+
+    if abs(valor_primal - valor_dual) > TOL:
+        return False
+
+    if abs(solucao["valor"] - solucao["valor_particao"]) > TOL:
+        return False
+
+    return True
+
+def exibir_resultado(resultado, solucao, valido):
+    print("\n--- Variaveis primais nao-nulas ---")
+    print("\nd_v:")
+    for v, valor in enumerate(solucao["d"], start=1):
+        if abs(valor) > TOL:
+            print(f"  d_{v} = {valor:.10g}")
+
+    print("\nx_e:")
+    for e, valor in enumerate(solucao["x"], start=1):
+        if abs(valor) > TOL:
+            u, v = arestas[e - 1]
+            print(
+                f"  x_{e} = {valor:.10g} "
+                f"(aresta {u}-{v}, capacidade={capacidades[e - 1]:g})"
+            )
+
+    print("\n--- Variaveis duais nao-nulas ---")
+    for e, (u, v) in enumerate(arestas):
+        yp = solucao["y_mais"][e]
+        ym = solucao["y_menos"][e]
+
+        if abs(yp) > TOL:
+            print(f"  y+_{e + 1} = {yp:.10g} ({u}-{v})")
+
+        if abs(ym) > TOL:
+            print(f"  y-_{e + 1} = {ym:.10g} ({u}-{v})")
+
+    print(f"\n  lambda_s = {solucao['lambda_s']:.10g}")
+    print(f"  lambda_t = {solucao['lambda_t']:.10g}")
+
+    print("\n--- Solucao ---")
+    print(f"S = {solucao['S']}")
+    print(f"T = {solucao['T']}")
+
+    print(f"\nValor otimo pelo Simplex: {solucao['valor']:.10g}")
+    print(f"Valor calculado pela particao: {solucao['valor_particao']:.10g}")
+
+    print("\nValidacao:", "OK" if valido else "ERRO")
+
+    print("\n--- Historico primal-dual ---")
+    for item in resultado["historico"]:
+        print(
+            f"  iteracao={item['iteracao']:3d} "
+            f"| len(J)={item['tamanho_J']:3d} "
+            f"| w*={item['w']:.10g} "
+            f"| dual={item['valor_dual']:.10g}"
+        )
+
+if __name__ == "__main__":
+    instancia = input("Escolha uma instancia para execucao (1 - 5): ")
+
+    ler_instancia(instancia)
+    A, B, C = construir_modelo()
+
+    print("\nInstancia carregada:")
+    print(f"  vertices = {qtd_vertices}")
+    print(f"  arestas  = {qtd_arestas}")
+    print(f"  fonte    = {s}")
+    print(f"  sumidouro = {t}")
+    print(f"  variaveis do modelo = {len(C)}")
+    print(f"  restricoes do modelo = {len(B)}")
+
+    resultado = resolver_primal_dual(A, B, C)
+    solucao = modelar_solucao(resultado)
+    valido = validar_solucao(A, B, C, resultado, solucao)
+
+    exibir_resultado(resultado, solucao, valido)
