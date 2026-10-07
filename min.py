@@ -426,9 +426,7 @@ def exibir_resultado(resultado, solucao, valido):
         )
 
 if __name__ == "__main__":
-    instancia = input("Escolha uma instancia para execucao (1 - 5): ")
-
-    ler_instancia(instancia)
+    instancia = ler_instancia("instance1.min")
     A, B, C = construir_modelo()
 
     print("\nInstancia carregada:")

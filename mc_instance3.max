@@ -4,7 +4,7 @@ c Commodity 1: s=1,  t=50
 c Commodity 2: s=2,  t=49
 c Commodity 3: s=3,  t=48
 c Commodity 4: s=4,  t=47
-p mcf 50 175 4
+p mcf 50 181 4
 n 1 s 1
 n 50 t 1
 n 2 s 2

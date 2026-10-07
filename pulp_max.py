@@ -52,18 +52,23 @@ def resolver_com_pulp(instancia, variaveis=None):
     return pulp.value(problema.objective), valores
 
 
-def comparar_com_pulp(instancia, variaveis, solucao):
+def comparar_com_pulp(instancia, variaveis, solucao, tempo=None):
     objetivo_pulp, valores_pulp = resolver_com_pulp(instancia, variaveis)
+    extra = f", tempo: {tempo:.2f}s" if tempo is not None else ""
     print(f"Objetivo primal-dual: {solucao['objetivo_primal']:.4f}")
     print(f"Objetivo PuLP/CBC:    {objetivo_pulp:.4f}")
+    print(f"{extra}")
     return objetivo_pulp, valores_pulp
 
 
 def main():
     caminho = "mc_instance5.max"
     instancia = ler_instancia(caminho)
+    import time 
+    inicio = time.perf_counter()
     objetivo, valores = resolver_com_pulp(instancia)
-    print(f"Valor objetivo (PuLP/CBC): {objetivo:.4f}")
+    tempo = time.perf_counter() - inicio
+    print(f"Valor objetivo (PuLP/CBC): {objetivo:.4f}, {tempo}")
 
 
 if __name__ == "__main__":
