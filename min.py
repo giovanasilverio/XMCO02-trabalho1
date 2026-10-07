@@ -15,7 +15,7 @@ capacidades = []
 def ler_instancia(i):
     global qtd_vertices, qtd_arestas, s, t, arestas, capacidades
 
-    with open(f"instance{i}.min", "r", encoding="utf-8") as f:
+    with open(i, "r", encoding="utf-8") as f:
         for linha in f:
             linha = linha.strip()
 
@@ -426,7 +426,7 @@ def exibir_resultado(resultado, solucao, valido):
         )
 
 if __name__ == "__main__":
-    instancia = ler_instancia("instance1.min")
+    ler_instancia("instance1.min")
     A, B, C = construir_modelo()
 
     print("\nInstancia carregada:")
