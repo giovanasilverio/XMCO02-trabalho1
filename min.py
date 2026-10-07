@@ -378,65 +378,76 @@ def validar_solucao(A, B, C, resultado, solucao):
     return True
 
 def exibir_resultado(resultado, solucao, valido):
-    print("\n--- Variaveis primais nao-nulas ---")
-    print("\nd_v:")
+    print("\n-- Variáveis primais não-nulas (potenciais dos vértices) --")
+    algum = False
     for v, valor in enumerate(solucao["d"], start=1):
         if abs(valor) > TOL:
-            print(f"  d_{v} = {valor:.10g}")
+            algum = True
+            print(f"  d[vértice={v}] = {valor:.4f}")
+    if not algum:
+        print("  (nenhuma variável não-nula)")
 
-    print("\nx_e:")
-    for e, valor in enumerate(solucao["x"], start=1):
+    print("\n-- Variáveis primais não-nulas (arestas do corte) --")
+    algum = False
+    for e, valor in enumerate(solucao["x"]):
         if abs(valor) > TOL:
-            u, v = arestas[e - 1]
+            algum = True
+            u, v = arestas[e]
             print(
-                f"  x_{e} = {valor:.10g} "
-                f"(aresta {u}-{v}, capacidade={capacidades[e - 1]:g})"
+                f"  x[aresta={e + 1}, {u} - {v}] "
+                f"(capacidade {capacidades[e]:g}) = {valor:.4f}"
             )
+    if not algum:
+        print("  (nenhuma variável não-nula)")
 
-    print("\n--- Variaveis duais nao-nulas ---")
+    print("\n-- Variáveis duais das restrições por aresta --")
+    algum = False
     for e, (u, v) in enumerate(arestas):
         yp = solucao["y_mais"][e]
         ym = solucao["y_menos"][e]
 
         if abs(yp) > TOL:
-            print(f"  y+_{e + 1} = {yp:.10g} ({u}-{v})")
+            algum = True
+            print(f"  y+[aresta={e + 1}, {u} - {v}] = {yp:.4f}")
 
         if abs(ym) > TOL:
-            print(f"  y-_{e + 1} = {ym:.10g} ({u}-{v})")
+            algum = True
+            print(f"  y-[aresta={e + 1}, {u} - {v}] = {ym:.4f}")
 
-    print(f"\n  lambda_s = {solucao['lambda_s']:.10g}")
-    print(f"  lambda_t = {solucao['lambda_t']:.10g}")
+    if not algum:
+        print("  (nenhuma variável dual não-nula)")
 
-    print("\n--- Solucao ---")
-    print(f"S = {solucao['S']}")
-    print(f"T = {solucao['T']}")
+    print("\n-- Variáveis duais das restrições de fixação (livres) --")
+    algum = False
+    for nome in ("lambda_s", "lambda_t"):
+        valor = solucao[nome]
+        if abs(valor) > TOL:
+            algum = True
+            print(f"  {nome} = {valor:.4f}")
+    if not algum:
+        print("  (nenhuma variável dual livre não-nula)")
 
-    print(f"\nValor otimo pelo Simplex: {solucao['valor']:.10g}")
-    print(f"Valor calculado pela particao: {solucao['valor_particao']:.10g}")
+    print("\n-- Partição do corte --")
+    print(f"  S = {solucao['S']}")
+    print(f"  T = {solucao['T']}")
 
-    print("\nValidacao:", "OK" if valido else "ERRO")
+    print(f"\nValor ótimo (objetivo primal): {solucao['valor']:.4f}")
 
-    print("\n--- Historico primal-dual ---")
-    for item in resultado["historico"]:
-        print(
-            f"  iteracao={item['iteracao']:3d} "
-            f"| len(J)={item['tamanho_J']:3d} "
-            f"| w*={item['w']:.10g} "
-            f"| dual={item['valor_dual']:.10g}"
-        )
+    if resultado["historico"]:
+        valor_dual = resultado["historico"][-1]["valor_dual"]
+        print(f"Valor ótimo (objetivo dual):   {valor_dual:.4f}")
+
+    print(
+        f"Valor calculado pela partição: "
+        f"{solucao['valor_particao']:.4f}"
+    )
+
+    print("\nSolução válida" if valido else "\nSolução inválida")
 
 if __name__ == "__main__":
     ler_instancia("instance1.min")
     A, B, C = construir_modelo()
-
-    print("\nInstancia carregada:")
-    print(f"  vertices = {qtd_vertices}")
-    print(f"  arestas  = {qtd_arestas}")
-    print(f"  fonte    = {s}")
-    print(f"  sumidouro = {t}")
-    print(f"  variaveis do modelo = {len(C)}")
-    print(f"  restricoes do modelo = {len(B)}")
-
+    
     resultado = resolver_primal_dual(A, B, C)
     solucao = modelar_solucao(resultado)
     valido = validar_solucao(A, B, C, resultado, solucao)
