@@ -226,7 +226,7 @@ class SubproblemaRestrito:
         return x
 
 
-def resolver_primal_dual(modelo, max_iteracoes=100000, tol=1e-9, tol_w=1e-7):
+def resolver_primal_dual(modelo, max_iteracoes=10000, tol=1e-9, tol_w=1e-7):
     A, b, c = modelo["A"], modelo["b"], modelo["custo"]
     n, m1, m = modelo["n"], modelo["m1"], modelo["m"]
     arestas_cap = np.array([-bi for bi in b[:m1]])
@@ -319,15 +319,9 @@ def validar_solucao(instancia, modelo, solucao, tol=1e-5):
         return False
     return True
 
-def exibir_resultado(instancia, modelo, solucao, valido, tempo=None):
+def exibir_resultado(instancia, modelo, solucao, valido):
     x = solucao["x"]
-    print("=" * 70)
-    print("SOLUÇÃO — MÉTODO PRIMAL-DUAL DO SIMPLEX")
-    print("=" * 70)
-    extra = f", tempo: {tempo:.2f}s" if tempo is not None else ""
-    print(f"Status: {solucao['status']}   (iterações primal-duais: {solucao['iteracoes']}, "
-          f"pivôs do RSP: {solucao['pivos_rsp']}{extra})")
-
+    
     print("\n-- Variáveis primais não-nulas (fluxo por mercadoria e aresta) --")
     algum = False
     for (mercadoria, e), col in sorted(modelo["variaveis"].items()):
@@ -366,18 +360,9 @@ def main():
     instancia = ler_instancia("mc_instance1.max")
     modelo = construir_modelo_fluxo(instancia)
 
-    print(f"  vértices={instancia['num_vertices']}  arestas={instancia['num_arestas']}  "
-          f"mercadorias={instancia['num_mercadorias']}")
-    print(f"  fontes={instancia['fontes']}  destinos={instancia['destinos']}  "
-          f"premios={instancia['premios']}")
-    print(f"  quantidade de variáveis do modelo: {len(modelo['variaveis'])}")
-
-    import time 
-    inicio = time.perf_counter()
     solucao = resolver_primal_dual(modelo)
-    tempo = time.perf_counter() - inicio
     valido = validar_solucao(instancia, modelo, solucao)
-    exibir_resultado(instancia, modelo, solucao, valido, tempo)
+    exibir_resultado(instancia, modelo, solucao, valido)
 
 
 if __name__ == "__main__":
